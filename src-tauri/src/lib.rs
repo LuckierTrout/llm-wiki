@@ -6,8 +6,21 @@ mod cors;
 mod panic_guard;
 mod proxy;
 mod server_bind;
+#[cfg(not(feature = "web-server"))]
 mod tray;
 mod types;
+#[cfg(feature = "web-server")]
+pub mod web_server;
+
+/// Runtime the command signatures are bound to. Desktop builds use the
+/// default Wry runtime; the `web-server` feature swaps in Tauri's
+/// MockRuntime so the identical commands run headlessly behind an HTTP
+/// server (no display, no webview).
+#[cfg(not(feature = "web-server"))]
+pub(crate) type WikiRuntime = tauri::Wry;
+#[cfg(feature = "web-server")]
+pub(crate) type WikiRuntime = tauri::test::MockRuntime;
+pub(crate) type WikiAppHandle = tauri::AppHandle<WikiRuntime>;
 
 use panic_guard::run_guarded;
 use serde::{Deserialize, Serialize};
@@ -17,6 +30,9 @@ use tauri::{Emitter, Manager};
 use uuid::Uuid;
 
 struct CloseBehaviorState(Mutex<String>);
+// The web server manages this state for setup parity but never reads it
+// (there is no tray without a desktop session).
+#[cfg_attr(feature = "web-server", allow(dead_code))]
 struct TrayAvailabilityState(Mutex<bool>);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +79,7 @@ fn api_server_reload_config() -> String {
 
 #[tauri::command]
 async fn agent_start_turn(
-    app: tauri::AppHandle,
+    app: crate::WikiAppHandle,
     project_id: String,
     mut request: agent::AgentChatRequest,
 ) -> Result<agent::types::AgentChatResponse, String> {
@@ -136,7 +152,7 @@ async fn agent_start_turn(
 
 #[tauri::command]
 fn agent_cancel_turn(
-    app: tauri::AppHandle,
+    app: crate::WikiAppHandle,
     project_id: String,
     session_id: String,
     run_id: Option<String>,
@@ -149,7 +165,7 @@ fn agent_cancel_turn(
 
 #[tauri::command]
 async fn agent_start_turn_stream(
-    app: tauri::AppHandle,
+    app: crate::WikiAppHandle,
     project_id: String,
     mut request: agent::AgentChatRequest,
 ) -> Result<String, String> {
@@ -254,7 +270,7 @@ async fn agent_start_turn_stream(
 
 #[tauri::command]
 fn agent_get_session(
-    app: tauri::AppHandle,
+    app: crate::WikiAppHandle,
     project_id: String,
     session_id: String,
     limit: Option<usize>,
@@ -271,7 +287,7 @@ fn agent_get_session(
 
 #[tauri::command]
 fn agent_list_sessions(
-    app: tauri::AppHandle,
+    app: crate::WikiAppHandle,
     project_id: String,
 ) -> Result<Vec<agent::session::AgentSession>, String> {
     let project = resolve_agent_project(&app, &project_id)?;
@@ -281,7 +297,7 @@ fn agent_list_sessions(
 }
 
 #[tauri::command]
-fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
+fn mcp_server_entry_path(app: crate::WikiAppHandle) -> Result<String, String> {
     run_guarded("mcp_server_entry_path", || {
         let relative = std::path::Path::new("mcp-server")
             .join("dist")
@@ -324,7 +340,7 @@ fn mcp_server_entry_path(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 fn resolve_agent_project(
-    app: &tauri::AppHandle,
+    app: &crate::WikiAppHandle,
     project_id: &str,
 ) -> Result<AgentProjectEntry, String> {
     let decoded = percent_decode(project_id);
@@ -339,7 +355,7 @@ fn resolve_agent_project(
         .ok_or_else(|| format!("Unknown project: {decoded}"))
 }
 
-fn load_agent_projects(app: &tauri::AppHandle) -> Vec<AgentProjectEntry> {
+fn load_agent_projects(app: &crate::WikiAppHandle) -> Vec<AgentProjectEntry> {
     let current = normalize_path(&clip_server::current_project_path());
     let mut projects = Vec::new();
     if let Some(parsed) = load_agent_app_state(app) {
@@ -398,13 +414,13 @@ fn load_agent_projects(app: &tauri::AppHandle) -> Vec<AgentProjectEntry> {
     projects
 }
 
-fn load_agent_app_state(app: &tauri::AppHandle) -> Option<Value> {
+fn load_agent_app_state(app: &crate::WikiAppHandle) -> Option<Value> {
     let path = app.path().app_data_dir().ok()?.join("app-state.json");
     let raw = std::fs::read_to_string(path).ok()?;
     serde_json::from_str(&raw).ok()
 }
 
-fn load_agent_runtime_config(app: &tauri::AppHandle) -> AgentRuntimeConfig {
+fn load_agent_runtime_config(app: &crate::WikiAppHandle) -> AgentRuntimeConfig {
     let Some(parsed) = load_agent_app_state(app) else {
         return AgentRuntimeConfig::default();
     };
@@ -526,6 +542,7 @@ fn set_close_behavior(
     Ok(normalized)
 }
 
+#[cfg(not(feature = "web-server"))]
 fn close_behavior<R: tauri::Runtime>(window: &tauri::Window<R>) -> String {
     window
         .state::<CloseBehaviorState>()
@@ -535,6 +552,7 @@ fn close_behavior<R: tauri::Runtime>(window: &tauri::Window<R>) -> String {
         .unwrap_or_else(|_| "minimize".to_string())
 }
 
+#[cfg(not(feature = "web-server"))]
 fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
     window
         .state::<TrayAvailabilityState>()
@@ -544,6 +562,7 @@ fn tray_available<R: tauri::Runtime>(window: &tauri::Window<R>) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(not(feature = "web-server"))]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_linux_webkit_compat_env();
@@ -764,7 +783,7 @@ pub fn run() {
         });
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "web-server")))]
 fn apply_linux_webkit_compat_env() {
     // WebKitGTK can crash or withdraw its window on some Wayland/XWayland
     // stacks unless accelerated render paths are disabled before the WebView
@@ -783,5 +802,5 @@ fn apply_linux_webkit_compat_env() {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(feature = "web-server")))]
 fn apply_linux_webkit_compat_env() {}

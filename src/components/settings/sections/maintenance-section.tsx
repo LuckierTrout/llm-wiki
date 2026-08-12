@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
 import { open, save } from "@tauri-apps/plugin-dialog"
+import { isWebMode } from "@/lib/runtime-mode"
 import {
   Wrench,
   Loader2,
@@ -204,6 +205,10 @@ export function MaintenanceSection() {
     try {
       await invoke("export_project_archive", { projectPath: project.path, destination })
       setProjectToolStatus(t("settings.sections.maintenance.projectData.exported", { path: destination }))
+      if (isWebMode()) {
+        // The archive was written on the server; hand it to the browser too.
+        window.open(`/api/download?path=${encodeURIComponent(destination)}`, "_blank")
+      }
     } catch (error) { setProjectToolStatus(String(error)) } finally { setProjectToolBusy(false) }
   }, [project, t])
 

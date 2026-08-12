@@ -24,6 +24,11 @@
 
 ---
 
+> **🌐 This repository is a web-enabled derivative of [nashsu/llm_wiki](https://github.com/nashsu/llm_wiki)** (GPL-3.0).
+> In addition to the original desktop app, it can be **self-hosted and used online from any browser** —
+> same frontend, same Rust backend, deployed with one `docker compose up`.
+> See [web/README.md](web/README.md) or the [Web (self-hosted) install section](#web-self-hosted--run-it-online) below.
+
 <p align="center">
   <img src="assets/overview.jpg" width="100%" alt="Overview">
 </p>
@@ -401,6 +406,21 @@ Download from [Releases](https://github.com/nashsu/llm_wiki/releases):
 - **macOS**: `.dmg` (Apple Silicon + Intel)
 - **Windows**: `.msi`
 - **Linux**: `.deb` / `.AppImage`
+
+### Web (self-hosted) — run it online
+
+This fork adds a headless server (`llm-wiki-server`) that serves the full app to any browser:
+
+```bash
+export LLM_WIKI_WEB_PASSWORD=change-me
+docker compose up --build -d
+# open http://localhost:8080
+```
+
+Everything from the desktop app works in the browser — projects, ingest, chat agent,
+knowledge graph, deep research, reviews, vector search — backed by the identical Rust
+command layer over HTTP + SSE. Details, configuration, and the security model are in
+[web/README.md](web/README.md).
 
 ### Build from Source
 

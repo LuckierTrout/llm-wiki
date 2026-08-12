@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
 use std::thread;
-use tauri::AppHandle;
+use crate::WikiAppHandle as AppHandle;
 use tiny_http::{Header, Method, Response, Server};
 
 use crate::cors::{local_cors_headers, request_origin};
@@ -44,6 +44,15 @@ pub fn current_project_path() -> String {
         .lock()
         .map(|guard| guard.clone())
         .unwrap_or_default()
+}
+
+/// Seed the current project without going through the HTTP endpoint. Used by
+/// the web server at startup, before any frontend has connected.
+#[cfg(feature = "web-server")]
+pub fn set_current_project_path(path: &str) {
+    if let Ok(mut current) = CURRENT_PROJECT.lock() {
+        *current = path.to_string();
+    }
 }
 
 pub fn all_projects() -> Vec<(String, String)> {

@@ -1,7 +1,8 @@
 use std::fs;
 
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use crate::WikiAppHandle as AppHandle;
+use tauri::Manager;
 
 const DEFAULT_BIND_HOST: &str = "127.0.0.1";
 const PUBLIC_BIND_HOST: &str = "0.0.0.0";

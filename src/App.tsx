@@ -19,6 +19,7 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { WelcomeScreen } from "@/components/project/welcome-screen"
 import { CreateProjectDialog } from "@/components/project/create-project-dialog"
 import type { WikiProject } from "@/types/wiki"
+import { clipServerBase } from "@/lib/runtime-mode"
 
 function applyDocumentZoom(level: number) {
   document.documentElement.style.fontSize = `${BASE_FONT_SIZE_PX * level}px`
@@ -514,7 +515,7 @@ function App() {
         }
       }).catch((err) => console.error("Failed to configure project file sync:", err))
       // Notify local clip server of the current project + all recent projects
-      fetch("http://127.0.0.1:19827/project", {
+      fetch(`${clipServerBase()}/project`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: proj.path }),
@@ -523,7 +524,7 @@ function App() {
       // Send all recent projects to clip server for extension project picker
       getRecentProjects().then((recents) => {
         const projects = recents.map((p) => ({ name: p.name, path: p.path }))
-        fetch("http://127.0.0.1:19827/projects", {
+        fetch(`${clipServerBase()}/projects`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ projects }),

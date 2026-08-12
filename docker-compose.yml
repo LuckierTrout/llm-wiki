@@ -1,0 +1,17 @@
+services:
+  llm-wiki:
+    build: .
+    image: llm-wiki-web
+    ports:
+      - "8080:8080"
+    environment:
+      # Required: protects the whole app (wiki data, file access, HTTP proxy).
+      # Set it in your shell or a .env file next to this compose file.
+      LLM_WIKI_WEB_PASSWORD: ${LLM_WIKI_WEB_PASSWORD:?set LLM_WIKI_WEB_PASSWORD before starting}
+      LLM_WIKI_PROJECTS_DIR: /data/projects
+    volumes:
+      - llm-wiki-data:/data
+    restart: unless-stopped
+
+volumes:
+  llm-wiki-data:
