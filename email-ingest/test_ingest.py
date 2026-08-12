@@ -50,7 +50,10 @@ class EmailIngestTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.cfg = ingest.Config()
-        self.cfg.target_dir = Path(self.tmp.name)
+        # Mirror the deployed layout: raw/sources inside a parent dir, so
+        # the staging/work area (target parent) exists and is separate.
+        self.cfg.target_dir = Path(self.tmp.name) / "raw" / "sources"
+        self.cfg.target_dir.mkdir(parents=True)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -80,7 +83,62 @@ class EmailIngestTests(unittest.TestCase):
         )
         written = ingest.process_message(raw, self.cfg)
         self.assertEqual(written, [])
-        self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
+        self.assertEqual(list(self.cfg.target_dir.iterdir()), [])
+
+    def test_secret_token_required_when_configured(self):
+        self.cfg.secret_token = "wiki-9x7"
+        raw = build_message(subject="No token here", body="spoofed?")
+        self.assertEqual(ingest.process_message(raw, self.cfg), [])
+        raw = build_message(subject="wiki-9x7 Reading list", body="real note")
+        written = ingest.process_message(raw, self.cfg)
+        self.assertEqual(len(written), 1)
+        content = written[0].read_text()
+        # Token is stripped from the stored title and filename.
+        self.assertIn('title: "Reading list"', content)
+        self.assertNotIn("wiki-9x7", content)
+
+    def test_publish_is_staged_outside_watched_dir(self):
+        raw = build_message(attachments=[("paper.pdf", b"%PDF-1.4")])
+        written = ingest.process_message(raw, self.cfg)
+        self.assertEqual(written[0].parent, self.cfg.target_dir)
+        # Staging area lives next to (not inside) the watched directory
+        # and holds no leftovers after publication.
+        self.assertEqual(self.cfg.staging_dir.parent.parent, self.cfg.target_dir.parent)
+        self.assertNotIn(self.cfg.target_dir, self.cfg.staging_dir.parents)
+        self.assertEqual(list(self.cfg.staging_dir.iterdir()), [])
+
+    def test_processed_record_roundtrip(self):
+        record = ingest.load_processed_record(self.cfg.state_path)
+        self.assertFalse(ingest.is_processed(record, "v1", "42"))
+        ingest.mark_processed(record, self.cfg.state_path, "v1", "42")
+        reloaded = ingest.load_processed_record(self.cfg.state_path)
+        self.assertTrue(ingest.is_processed(reloaded, "v1", "42"))
+        # A UIDVALIDITY change invalidates old UIDs.
+        self.assertFalse(ingest.is_processed(reloaded, "v2", "42"))
+        ingest.mark_processed(reloaded, self.cfg.state_path, "v2", "7")
+        final = ingest.load_processed_record(self.cfg.state_path)
+        self.assertFalse(ingest.is_processed(final, "v2", "42"))
+        self.assertTrue(ingest.is_processed(final, "v2", "7"))
+
+    def test_parse_rfc822_size(self):
+        data = [b"12 (RFC822.SIZE 34567 UID 99)"]
+        self.assertEqual(ingest.parse_rfc822_size(data), 34567)
+        self.assertIsNone(ingest.parse_rfc822_size([b"12 (UID 99)"]))
+        self.assertIsNone(ingest.parse_rfc822_size(None))
+
+    def test_empty_optional_env_falls_back_to_default(self):
+        os.environ["ALLOWED_EXTENSIONS"] = ""
+        os.environ["POLL_SECONDS"] = ""
+        os.environ["IMAP_FOLDER"] = " "
+        try:
+            cfg = ingest.Config()
+            self.assertIn("pdf", cfg.allowed_extensions)
+            self.assertEqual(cfg.poll_seconds, 60)
+            self.assertEqual(cfg.imap_folder, "INBOX")
+        finally:
+            del os.environ["ALLOWED_EXTENSIONS"]
+            del os.environ["POLL_SECONDS"]
+            del os.environ["IMAP_FOLDER"]
 
     def test_bodyless_attachmentless_writes_nothing(self):
         raw = build_message(body="")
@@ -124,7 +182,7 @@ class EmailIngestTests(unittest.TestCase):
         raw = build_message(attachments=[("../../etc/passwd.md", b"nope")])
         written = ingest.process_message(raw, self.cfg)
         self.assertEqual(len(written), 1)
-        self.assertEqual(written[0].parent, Path(self.tmp.name))
+        self.assertEqual(written[0].parent, self.cfg.target_dir)
         self.assertNotIn("/", written[0].name)
         self.assertNotIn("..", written[0].name.split(".")[0])
 
