@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use chrono::Local;
-use tauri::AppHandle;
+use crate::WikiAppHandle as AppHandle;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::panic_guard::run_guarded;
@@ -263,6 +263,9 @@ pub fn open_project(path: String) -> Result<WikiProject, String> {
     })
 }
 
+// The web dispatcher answers these two commands with an error instead of
+// calling them (there is no desktop file manager to open on a server).
+#[cfg_attr(feature = "web-server", allow(dead_code))]
 #[tauri::command]
 pub fn open_project_folder(app: AppHandle, path: String) -> Result<(), String> {
     run_guarded("open_project_folder", || {
@@ -289,6 +292,9 @@ pub fn open_project_folder(app: AppHandle, path: String) -> Result<(), String> {
     })
 }
 
+// The web dispatcher answers these two commands with an error instead of
+// calling them (there is no desktop file manager to open on a server).
+#[cfg_attr(feature = "web-server", allow(dead_code))]
 #[tauri::command]
 pub fn open_path_in_project(
     app: AppHandle,

@@ -19,6 +19,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "llm-wiki"
 path = "src/main.rs"
 
+# Headless web server binary. Reuses every Tauri command over HTTP + SSE so
+# the same app can be deployed online (see web/README.md). Built only with
+# `--features web-server`, which swaps the command runtime to Tauri's
+# MockRuntime — no display, no webview, no window.
+[[bin]]
+name = "llm-wiki-server"
+path = "src/bin/server.rs"
+required-features = ["web-server"]
+
+[features]
+default = []
+web-server = ["tauri/test"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -48,7 +61,7 @@ futures = "0.3"
 # Claude Code CLI subprocess transport: spawn `claude` as a child process,
 # stream stdout line-by-line back to the frontend. tokio::process gives us
 # async io and clean cancellation; `which` locates the binary on PATH.
-tokio = { version = "1", features = ["process", "io-util", "sync", "macros", "rt"] }
+tokio = { version = "1", features = ["process", "io-util", "sync", "macros", "rt", "rt-multi-thread"] }
 which = "7"
 uuid = { version = "1", features = ["v4"] }
 # Multimodal image extraction (Phase 1):
