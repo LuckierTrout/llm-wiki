@@ -422,6 +422,10 @@ knowledge graph, deep research, reviews, vector search — backed by the identic
 command layer over HTTP + SSE. Details, configuration, and the security model are in
 [web/README.md](web/README.md).
 
+The web deployment can also **ingest documents you email to it**: an optional
+IMAP-polling sidecar drops attachments from allowlisted senders into
+`raw/sources/` for auto-ingestion — see [email-ingest/README.md](email-ingest/README.md).
+
 ### Build from Source
 
 ```bash

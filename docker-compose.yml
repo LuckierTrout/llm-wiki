@@ -13,5 +13,23 @@ services:
       - llm-wiki-data:/data
     restart: unless-stopped
 
+  # Optional: email documents to your wiki. Polls a dedicated mailbox over
+  # IMAP and drops attachments into the project's raw/sources/, where
+  # Source Folder Auto-Watch queues them for ingestion. Enable with:
+  #   docker compose --profile email up -d
+  # See email-ingest/README.md for setup.
+  email-ingest:
+    build: ./email-ingest
+    profiles: ["email"]
+    environment:
+      IMAP_HOST: ${IMAP_HOST:?e.g. imap.gmail.com}
+      IMAP_USER: ${IMAP_USER:?the dedicated mailbox address}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:?app password for the mailbox}
+      EMAIL_ALLOWED_SENDERS: ${EMAIL_ALLOWED_SENDERS:?comma-separated senders allowed to ingest}
+      EMAIL_INGEST_DIR: ${EMAIL_INGEST_DIR:?e.g. /data/projects/My Wiki/raw/sources}
+    volumes:
+      - llm-wiki-data:/data
+    restart: unless-stopped
+
 volumes:
   llm-wiki-data:
