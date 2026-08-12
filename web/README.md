@@ -16,6 +16,11 @@ docker compose up --build -d
 All state (settings, wiki projects, uploads) lives in the `llm-wiki-data`
 volume under `/data`.
 
+Optional: **email documents into your wiki** — a small IMAP-polling sidecar
+saves attachments from allowlisted senders straight into `raw/sources/`
+for auto-ingestion. See [email-ingest/README.md](../email-ingest/README.md);
+enable it with `docker compose --profile email up -d`.
+
 ## Quick start (bare metal)
 
 ```bash
